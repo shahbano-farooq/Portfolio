@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Impact of an Instructor</title>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/d3-sankey@0.12.3/dist/d3-sankey.min.js"></script>
+  <style>
+    body { font-family: sans-serif; }
+    .node rect { cursor: move; fill-opacity: 0.9; shape-rendering: crispEdges; }
+    .node text { pointer-events: none; text-shadow: 0 1px 0 #fff; }
+    .link { fill: none; stroke-opacity: 0.2; }
+    .link:hover { stroke-opacity: 0.5; }
+  </style>
+</head>
+<body>
+  <h2>Impact of an Instructor</h2>
+  <svg width="1200" height="600"></svg>
+
+  <script>
+  const svg = d3.select("svg");
+  const width = +svg.attr("width");
+  const height = +svg.attr("height");
+
+  const sankey = d3.sankey()
+    .nodeWidth(20)
+    .nodePadding(5)
+    .extent([[1, 1], [width - 1, height - 6]]);
+
+  const color = d3.scaleOrdinal(d3.schemeCategory10);
+
+  d3.csv("data.csv").then(data => {
+    const nodesMap = new Map();
+    const linksMap = new Map();
+    const nodeStudentCount = new Map();
+
+    data.forEach(row => {
+      const year = row.Year;
+      const college = row.College.trim();
+      const term = row.Term;
+      const title = row.Title.trim();
+      const value = parseInt(row.Students);
+
+      const key1 = `Year ${year}`;
+      const key2 = `College: ${college}`;
+      const key3 = `Term ${term}`;
+      const key4 = `Course: ${title}`;
+
+      [key1, key2, key3, key4].forEach(k => {
+        if (!nodesMap.has(k)) {
+          nodesMap.set(k, { name: k });
+          nodeStudentCount.set(k, 0);
+        }
+        nodeStudentCount.set(k, nodeStudentCount.get(k) + value);
+      });
+
+      const createLink = (source, target) => {
+        const linkKey = `${source}->${target}`;
+        if (!linksMap.has(linkKey)) {
+          linksMap.set(linkKey, { source, target, value: 0 });
+        }
+        linksMap.get(linkKey).value += value;
+      };
+
+      createLink(key1, key2);
+      createLink(key2, key3);
+      createLink(key3, key4);
+    });
+
+    const nodes = Array.from(nodesMap.values()).map(n => ({
+      name: `${n.name} (${nodeStudentCount.get(n.name)} students)`
+    }));
+
+    const links = Array.from(linksMap.values()).map(link => ({
+    source: nodes.find(n => n.name.startsWith(link.source)),
+    target: nodes.find(n => n.name.startsWith(link.target)),
+    value: link.value
+    }));
+
+
+    const sankeyData = { nodes, links };
+    sankey(sankeyData);
+
+    svg.append("g")
+      .selectAll("rect")
+      .data(sankeyData.nodes)
+      .enter().append("rect")
+      .attr("x", d => d.x0)
+      .attr("y", d => d.y0)
+      .attr("height", d => d.y1 - d.y0)
+      .attr("width", d => d.x1 - d.x0)
+      .attr("fill", d => color(d.name))
+      .append("title")
+      .text(d => d.name ? d.name : "Unnamed")
+
+
+
+    svg.append("g")
+      .attr("fill", "none")
+      .attr("stroke", "#000")
+      .attr("stroke-opacity", 0.2)
+      .selectAll("path")
+      .data(sankeyData.links)
+      .enter().append("path")
+      .attr("d", d3.sankeyLinkHorizontal())
+      .attr("stroke-width", d => Math.max(1, d.width))
+      .append("title")
+      .text(d => `${d.source.name} → ${d.target.name}\n${d.value} students`);
+
+
+    svg.append("g")
+      .style("font", "10px sans-serif")
+      .selectAll("text")
+      .data(sankeyData.nodes)
+      .enter().append("text")
+      .attr("x", d => d.x0 < width / 2 ? d.x1 + 6 : d.x0 - 6)
+      .attr("y", d => (d.y1 + d.y0) / 2)
+      .attr("dy", "0.35em")
+      .attr("text-anchor", d => d.x0 < width / 2 ? "start" : "end")
+      .text(d => d.name);
+  });
+</script>
+</body>
+</html>
